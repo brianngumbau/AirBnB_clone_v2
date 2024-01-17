@@ -1,12 +1,17 @@
 #!/usr/bin/python3
-"""This module defines a class to manage file storage for hbnb clone"""
+"""defines filestorage class"""
 import json
-import os
-from importlib import import_module
+from models.base_model import BaseModel
+from models.amenity import Amenity
+from models.city import City
+from models.place import Place
+from models.review import Review
+from models.state import state
+from models.user import user
 
 
 class FileStorage:
-    """This class manages storage of hbnb models in JSON format"""
+    """Represents abstarcated storage engine"""
     __file_path = 'file.json'
     __objects = {}
 
@@ -24,21 +29,22 @@ class FileStorage:
 
     def all(self, cls=None):
         """Returns a dictionary of models currently in storage"""
-        if cls is None:
+        if cls is not None:
+            if type(cls) == str:
+                cls = eval(cls)
+                cls_dict = {}
+                for key, value in self.__objects.items():
+                    if type(value) == cls:
+                        cls_dict[key] = value
+                        return cls_dict
             return self.__objects
-        else:
-            filtered_dict = {}
-            for key, value in self.__objects.items():
-                if type(value) is cls:
-                    filtered_dict[key] = value
-            return filtered_dict
 
     def delete(self, obj=None):
         """Removes an object from the storage dictionary"""
-        if obj is not None:
-            obj_key = obj.to_dict()['__class__'] + '.' + obj.id
-            if obj_key in self.__objects.keys():
-                del self.__objects[obj_key]
+        try:
+            del self.__objects["{}.{}".format(type(obj).__name__, obj.id)]
+        except (AttributeError, KeyError):
+            pass
 
     def new(self, obj):
         """Adds new object to storage dictionary"""
