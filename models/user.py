@@ -12,23 +12,23 @@ class User(BaseModel, Base):
     __tablename__ = 'users'
     email = Column(
             string(128), nullable=False
-            )
+            ) if os.getenv('HBNB_TYPE_STORAGE') == 'db' else ''
     password = Column(
             string(128), nullable=False
-            )
+            ) if os.getenv('HBNB_TYPE_STORAGE') == 'db' else ''
     first_name = Column(
             string(128), nullable=False
-            )
+            ) if os.getenv('HBNB_TYPE_STORAGE') == 'db' else ''
     last_name = Column(
             string(128), nullable=False
-            )
+            ) if os.getenv('HBNB_TYPE_STORAGE') == 'db' else ''
     places = relationship(
             'Place',
             cascade="all, delete, delete-orphan",
             backref='user'
-            )
+            ) if os.getenv('HBNB_TYPE_STORAGE') == 'db' else ''
     reviews = relationship(
             'Review',
             cascade="all, delete, delete-orphan",
             backref='user'
-            )
+            ) if os.getenv('HBNB_TYPE_STORAGE') == 'db' else ''
