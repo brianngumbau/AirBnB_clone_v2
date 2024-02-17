@@ -39,7 +39,7 @@ def numbertemplate(n):
 
 
 @app.route('/number_odd_or_even/<int:n>', strict_slashes=False)
-def numbersandevenness(n):
+def numbersandoddness(n):
     if n % 2 == 0:
         oddness = 'even'
     else:
