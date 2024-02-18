@@ -1,70 +1,90 @@
 #!/usr/bin/python3
-"""
-Contains the FileStorage class
-"""
+"""This module defines a class to manage database storage for hbnb clone"""
+import os
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, scoped_session
+import urllib.parse
 
-import json
-from models.amenity import Amenity
-from models.base_model import BaseModel
-from models.city import City
-from models.place import Place
-from models.review import Review
+from models.base_model import BaseModel, Base
 from models.state import State
+from models.city import City
 from models.user import User
+from models.place import Place, place_amenity
+from models.amenity import Amenity
+from models.review import Review
 
-classes = {"Amenity": Amenity, "BaseModel": BaseModel, "City": City,
-           "Place": Place, "Review": Review, "State": State, "User": User}
 
+class DBStorage:
+    """This class manages storage of hbnb models in a SQL database"""
+    __engine = None
+    __session = None
 
-class FileStorage:
-    """serializes instances to a JSON file & deserializes back to instances"""
-
-    # string - path to the JSON file
-    __file_path = "file.json"
-    # dictionary - empty but will store all objects by <class name>.id
-    __objects = {}
+    def __init__(self):
+        """Initializes the SQL database storage"""
+        user = os.getenv('HBNB_MYSQL_USER')
+        pword = os.getenv('HBNB_MYSQL_PWD')
+        host = os.getenv('HBNB_MYSQL_HOST')
+        db_name = os.getenv('HBNB_MYSQL_DB')
+        env = os.getenv('HBNB_ENV')
+        DATABASE_URL = "mysql+mysqldb://{}:{}@{}:3306/{}".format(
+            user, pword, host, db_name
+        )
+        self.__engine = create_engine(
+            DATABASE_URL,
+            pool_pre_ping=True
+        )
+        if env == 'test':
+            Base.metadata.drop_all(self.__engine)
 
     def all(self, cls=None):
-        """returns the dictionary __objects"""
-        if cls is not None:
-            new_dict = {}
-            for key, value in self.__objects.items():
-                if cls == value.__class__ or cls == value.__class__.__name__:
-                    new_dict[key] = value
-            return new_dict
-        return self.__objects
-
-    def new(self, obj):
-        """sets in __objects the obj with key <obj class name>.id"""
-        if obj is not None:
-            key = obj.__class__.__name__ + "." + obj.id
-            self.__objects[key] = obj
-
-    def save(self):
-        """serializes __objects to the JSON file (path: __file_path)"""
-        json_objects = {}
-        for key in self.__objects:
-            json_objects[key] = self.__objects[key].to_dict()
-        with open(self.__file_path, 'w') as f:
-            json.dump(json_objects, f)
-
-    def reload(self):
-        """deserializes the JSON file to __objects"""
-        try:
-            with open(self.__file_path, 'r') as f:
-                jo = json.load(f)
-            for key in jo:
-                self.__objects[key] = classes[jo[key]["__class__"]](**jo[key])
-        except FileNotFoundError:
-            pass
+        """Returns a dictionary of models currently in storage"""
+        objects = dict()
+        all_classes = (User, State, City, Amenity, Place, Review)
+        if cls is None:
+            for class_type in all_classes:
+                query = self.__session.query(class_type)
+                for obj in query.all():
+                    obj_key = '{}.{}'.format(obj.__class__.__name__, obj.id)
+                    objects[obj_key] = obj
+        else:
+            query = self.__session.query(cls)
+            for obj in query.all():
+                obj_key = '{}.{}'.format(obj.__class__.__name__, obj.id)
+                objects[obj_key] = obj
+        return objects
 
     def delete(self, obj=None):
-        """delete obj from __objects if it’s inside"""
+        """Removes an object from the storage database"""
         if obj is not None:
-            key = obj.__class__.__name__ + '.' + obj.id
-            if key in self.__objects:
-                del self.__objects[key]
+            self.__session.query(type(obj)).filter(
+                type(obj).id == obj.id).delete(
+                synchronize_session=False
+            )
+
+    def new(self, obj):
+        """Adds new object to storage database"""
+        if obj is not None:
+            try:
+                self.__session.add(obj)
+                self.__session.flush()
+                self.__session.refresh(obj)
+            except Exception as ex:
+                self.__session.rollback()
+                raise ex
+
+    def save(self):
+        """Commits the session changes to database"""
+        self.__session.commit()
+
+    def reload(self):
+        """Loads storage database"""
+        Base.metadata.create_all(self.__engine)
+        SessionFactory = sessionmaker(
+            bind=self.__engine,
+            expire_on_commit=False
+        )
+        self.__session = scoped_session(SessionFactory)()
 
     def close(self):
-        """call reload() method for deserializing the JSON file to objects"""
-        self.reload()
+        """Closes the storage engine."""
+        self.__session.close()
